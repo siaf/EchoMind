@@ -1,7 +1,7 @@
 from setuptools import setup, find_packages
 
 setup(
-    name="termonitor",
+    name="echomind",
     version="0.1.0",
     packages=find_packages(),
     install_requires=[
@@ -11,11 +11,11 @@ setup(
     ],
     entry_points={
         'console_scripts': [
-            'termonitor=termonitor.monitor:main',
-            'termonitor-listen=termonitor.listener:main',
+            'echomind=termonitor.monitor:main',
+            'echomind-listen=termonitor.listener:main',
         ],
     },
     author="Siavash",
-    description="A terminal monitoring tool that captures and logs terminal I/O across sessions",
+    description="An intelligent terminal observer that captures, logs, and interprets terminal I/O using local LLM intelligence",
     python_requires='>=3.6',
 )
