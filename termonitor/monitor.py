@@ -11,6 +11,7 @@ import errno
 import termios
 import logging
 import re
+from termonitor import __version__
 from datetime import datetime
 from logging.handlers import RotatingFileHandler
 from contextlib import contextmanager
@@ -176,6 +177,7 @@ class TerminalMonitor:
                     pass
 
 @click.command()
+@click.version_option(version=__version__)
 @click.option('--log-dir', default=DEFAULT_LOG_DIR, help='Directory for log files')
 def main(log_dir):
     """Start monitoring terminal I/O"""

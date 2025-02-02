@@ -7,6 +7,7 @@ setup(
     install_requires=[
         'python-json-logger>=2.0.0',  # For structured logging
         'click>=8.0.0',  # For CLI interface
+        'requests>=2.31.0',  # For LLM backend communication
     ],
     entry_points={
         'console_scripts': [
