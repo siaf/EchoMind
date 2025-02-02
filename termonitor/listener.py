@@ -39,24 +39,38 @@ class TerminalLogListener:
 
             # Add the data to current interaction
             if data.strip():
-                self.current_interaction.append(data)
+                self.current_interaction.append(data.strip())
 
             # Check for command completion marker
             if '%' in data:
                 # Get analysis from LLM backend
                 if self.current_interaction:
-                    analysis = self.llm_backend.analyze_interaction(
-                        self.current_timestamp,
-                        self.current_session_id,
-                        self.current_interaction
-                    )
-                    print(f"\n[{self.current_timestamp}] Session {self.current_session_id} Analysis:")
-                    print(analysis)
-                    print()
-                    # Reset for next interaction
-                    self.current_interaction = []
-                    self.current_timestamp = None
-                    self.current_session_id = None
+                    try:
+                        # Clear screen before showing new analysis
+                        print('\033[2J\033[H', end='')  # ANSI escape sequence to clear screen and move cursor to home
+                        print(f"\n[{self.current_timestamp}] Session {self.current_session_id} Analysis:")
+                        
+                        # Process streaming response
+                        analysis_received = False
+                        for fragment in self.llm_backend.analyze_interaction(
+                            self.current_timestamp,
+                            self.current_session_id,
+                            self.current_interaction
+                        ):
+                            if fragment:
+                                analysis_received = True
+                                print(fragment, end='', flush=True)
+                        
+                        if not analysis_received:
+                            print("\nNo analysis available - please ensure Ollama is running.")
+                        print('\n')
+                    except Exception as e:
+                        print(f"\nError getting analysis: {str(e)}\n")
+                    finally:
+                        # Reset for next interaction
+                        self.current_interaction = []
+                        self.current_timestamp = None
+                        self.current_session_id = None
 
         except Exception as e:
             print(f"Error processing log entry: {str(e)}")
