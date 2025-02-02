@@ -2,7 +2,6 @@ import os
 import sys
 import pty
 import time
-import json
 import click
 import select
 import signal
@@ -11,9 +10,9 @@ import fcntl
 import errno
 import termios
 import logging
+import re
 from datetime import datetime
 from logging.handlers import RotatingFileHandler
-from pythonjsonlogger import jsonlogger
 from contextlib import contextmanager
 
 DEFAULT_LOG_DIR = os.path.expanduser('~/.termonitor/logs')
@@ -21,8 +20,23 @@ MAX_LOG_SIZE = 10 * 1024 * 1024  # 10MB
 MAX_LOG_FILES = 5
 BUFFER_SIZE = 4096  # Increased buffer size for better performance
 
-# Configure JSON formatter with more detailed logging
-formatter = jsonlogger.JsonFormatter('%(asctime)s %(levelname)s %(name)s %(message)s')
+# Configure plain text formatter
+class PlainTextFormatter(logging.Formatter):
+    def __init__(self):
+        super().__init__('%(asctime)s [%(levelname)s] Session %(session_id)s: %(message)s')
+        self.ansi_escape = re.compile(r'\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])')
+    
+    def format(self, record):
+        if not hasattr(record, 'session_id'):
+            record.session_id = 'N/A'
+        if hasattr(record, 'data'):
+            # Strip ANSI escape codes from the data
+            record.msg = self.ansi_escape.sub('', record.data)
+        elif hasattr(record, 'error'):
+            record.msg = f"Error: {record.error}"
+        return super().format(record)
+
+formatter = PlainTextFormatter()
 
 class TerminalMonitor:
     def __init__(self, log_dir=DEFAULT_LOG_DIR):
@@ -89,16 +103,17 @@ class TerminalMonitor:
 
     def monitor_session(self):
         session_id = datetime.now().strftime('%Y%m%d_%H%M%S')
+        child_pid = None
         
         def handle_signal(signum, frame):
             if signum in (signal.SIGTERM, signal.SIGINT):
-                self._running = False
-                self.logger.info({
-                    'session_id': session_id,
-                    'type': 'system',
-                    'data': f'Received signal {signum}, shutting down gracefully...',
-                    'timestamp': datetime.now().isoformat()
-                })
+                if child_pid:
+                    try:
+                        os.kill(child_pid, signal.SIGTERM)
+                        os.waitpid(child_pid, 0)
+                    except OSError:
+                        pass
+                sys.exit(0)
         
         for sig in (signal.SIGTERM, signal.SIGINT, signal.SIGHUP):
             signal.signal(sig, handle_signal)
@@ -137,35 +152,20 @@ class TerminalMonitor:
                             if not data:
                                 break
                             os.write(sys.stdout.fileno(), data)
-                            self.logger.info({
-                                'session_id': session_id,
-                                'type': 'output',
-                                'data': data.decode(errors='replace'),
-                                'timestamp': datetime.now().isoformat()
-                            })
+                            self.logger.info('', extra={'session_id': session_id, 'data': data.decode(errors='replace')})
                         
                         if sys.stdin in r:  # Input from user
                             data = os.read(sys.stdin.fileno(), BUFFER_SIZE)
                             if not data:
                                 break
                             os.write(master_fd, data)
-                            self.logger.info({
-                                'session_id': session_id,
-                                'type': 'input',
-                                'data': data.decode(errors='replace'),
-                                'timestamp': datetime.now().isoformat()
-                            })
+                            self.logger.info('', extra={'session_id': session_id, 'data': data.decode(errors='replace')})
                             
                     except OSError as e:
                         if e.errno != errno.EINTR:  # Ignore interrupted system call
                             raise
                     except Exception as e:
-                        self.logger.error({
-                            'session_id': session_id,
-                            'type': 'error',
-                            'error': str(e),
-                            'timestamp': datetime.now().isoformat()
-                        })
+                        self.logger.error('', extra={'session_id': session_id, 'error': str(e)})
                         break
             finally:
                 # Ensure child process is properly terminated

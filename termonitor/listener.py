@@ -1,11 +1,10 @@
 import os
 import sys
-import json
 import time
 import click
 import logging
 from datetime import datetime
-from typing import Optional, Dict, Any
+from typing import Optional
 
 DEFAULT_LOG_DIR = os.path.expanduser('~/.termonitor/logs')
 DEFAULT_LOG_FILE = 'terminal.log'
@@ -15,14 +14,13 @@ class TerminalLogListener:
         self.log_path = os.path.join(log_dir, log_file)
         self.last_position = 0
 
-    def process_log_entry(self, entry: Dict[str, Any]) -> None:
-        """Process a single log entry. This method can be extended for more advanced analysis."""
-        timestamp = entry.get('timestamp', '')
-        session_id = entry.get('session_id', '')
-        data = entry.get('data', '')
-        
-        # Format and print the log entry
-        print(f"[{timestamp}] Session {session_id}:\n{data}")
+    def process_log_entry(self, line: str) -> None:
+        """Process a single log entry in the format: [timestamp] [level] Session session_id: message"""
+        try:
+            # Print the log entry as-is since it's already in the desired format
+            print(line.rstrip())
+        except Exception as e:
+            print(f"Warning: Failed to process log entry: {str(e)}")
 
     def listen(self, follow: bool = True) -> None:
         """Listen to the log file and process new entries."""
@@ -57,12 +55,8 @@ class TerminalLogListener:
                             time.sleep(0.1)  # Increased sleep time to reduce CPU usage
                             break  # Break inner loop to recheck file size
 
-                        try:
-                            entry = json.loads(line)
-                            self.process_log_entry(entry)
-                            self.last_position = f.tell()
-                        except json.JSONDecodeError:
-                            print(f"Warning: Invalid JSON entry: {line.strip()}")
+                        self.process_log_entry(line)
+                        self.last_position = f.tell()
 
         except KeyboardInterrupt:
             print("\nStopping log listener...")
