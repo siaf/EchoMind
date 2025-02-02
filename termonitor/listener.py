@@ -6,6 +6,7 @@ import logging
 from datetime import datetime
 from typing import Dict, Any, Optional
 from datetime import datetime
+from .llm_backend import OllamaBackend
 
 DEFAULT_LOG_DIR = os.path.expanduser('~/.termonitor/logs')
 DEFAULT_LOG_FILE = 'terminal.log'
@@ -17,6 +18,7 @@ class TerminalLogListener:
         self.current_interaction = []
         self.current_timestamp = None
         self.current_session_id = None
+        self.llm_backend = OllamaBackend()
 
     def process_log_entry(self, line: str) -> None:
         """Process a single log entry, accumulating output until command completion."""
@@ -41,21 +43,21 @@ class TerminalLogListener:
 
             # Check for command completion marker
             if '%' in data:
-                # Print the accumulated interaction
+                # Get analysis from LLM backend
                 if self.current_interaction:
-                    print(f"[{self.current_timestamp}] Session {self.current_session_id}:")
-                    for line in self.current_interaction:
-                        if line.strip() and line.strip() != '%':
-                            # Add shell prompt for user input (lines that end with a newline)
-                            if line.rstrip().endswith('\n'):
-                                print(f"{self.current_session_id}> {line.rstrip()}")
-                            else:
-                                print(line.rstrip())
+                    analysis = self.llm_backend.analyze_interaction(
+                        self.current_timestamp,
+                        self.current_session_id,
+                        self.current_interaction
+                    )
+                    print(f"\n[{self.current_timestamp}] Session {self.current_session_id} Analysis:")
+                    print(analysis)
                     print()
                     # Reset for next interaction
                     self.current_interaction = []
                     self.current_timestamp = None
                     self.current_session_id = None
+
         except Exception as e:
             print(f"Error processing log entry: {str(e)}")
 
